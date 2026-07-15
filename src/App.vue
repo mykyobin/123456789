@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FestivalChatWidget } from './chatbot'
+import CommunityBoard from './components/CommunityBoard.vue'
 
 const previewChatOpen =
   typeof window !== 'undefined' &&
@@ -57,6 +58,8 @@ const previewChatOpen =
         </article>
       </div>
     </section>
+
+    <CommunityBoard />
 
     <footer id="about" class="data-footer">
       <p>
