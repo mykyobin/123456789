@@ -16,11 +16,13 @@
   },
   "dependencies": {
     "@netlify/functions": "^5.3.0",
+    "leaflet": "^1.9.4",
     "openai": "^6.16.0",
     "vue": "^3.5.24"
   },
   "devDependencies": {
     "@netlify/zip-it-and-ship-it": "^15.2.0",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "typescript": "~5.9.3",

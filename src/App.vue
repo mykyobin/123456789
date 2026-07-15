@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FestivalChatWidget } from './chatbot'
 import CommunityBoard from './components/CommunityBoard.vue'
+import FestivalMapSection from './features/map/FestivalMapSection.vue'
 
 const previewChatOpen =
   typeof window !== 'undefined' &&
@@ -44,20 +45,7 @@ const previewChatOpen =
       </div>
     </section>
 
-    <section id="festivals" class="content-section">
-      <div>
-        <span class="section-kicker">이번 달 추천</span>
-        <h2>서울에서 즐기는 지역 행사</h2>
-      </div>
-      <div class="card-grid">
-        <article v-for="index in 3" :key="index" class="content-card">
-          <div class="card-image" />
-          <span>서울 축제</span>
-          <h3>{{ ['도심 속 문화 행사', '가족과 함께하는 축제', '여름밤 야외 공연'][index - 1] }}</h3>
-          <p>실제 서비스에서는 제공 JSON을 기반으로 행사 목록이 표시됩니다.</p>
-        </article>
-      </div>
-    </section>
+    <FestivalMapSection />
 
     <CommunityBoard />
 
