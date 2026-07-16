@@ -34,7 +34,7 @@ const previewChatOpen =
       </div>
       <div class="hero-card" aria-hidden="true">
         <div class="mock-image">
-          <span>SEOUL</span>
+          <img src="/seoul.jpg" alt="서울 이미지" />
         </div>
         <div class="mock-lines">
           <strong>서울 축제·공연·행사</strong>
