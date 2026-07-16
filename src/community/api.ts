@@ -109,7 +109,7 @@ function createLocalId(): string {
 
 function canUseLocalFallback(error: unknown): boolean {
   if (error instanceof CommunityApiError) {
-    return error.status >= 500
+    return true
   }
 
   return error instanceof TypeError
