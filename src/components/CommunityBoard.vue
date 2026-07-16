@@ -531,22 +531,25 @@ onMounted(() => {
 
 .autocomplete-field {
   position: relative;
+  overflow: visible;
+  z-index: 10;
 }
 
 .suggestion-list {
   position: absolute;
   left: 0;
   right: 0;
-  margin: 6px 0 0;
+  top: 100%;
+  margin: 10px 0 0;
   padding: 8px 0;
   border: 1px solid #d8dee8;
-  border-radius: 14px;
+  border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 14px 32px rgba(31, 51, 91, 0.08);
+  box-shadow: 0 20px 40px rgba(31, 51, 91, 0.12);
   list-style: none;
   max-height: 220px;
   overflow-y: auto;
-  z-index: 10;
+  z-index: 1000;
 }
 
 .suggestion-list li {
