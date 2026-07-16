@@ -40,13 +40,3 @@ export interface CommunityDeleteRequest {
   password: string
 }
 
-export interface CommunityPost {
-  id: string;
-  title: string;
-  content: string;
-}
-
-export interface ApiErrorBody {
-  error: string;
-  message?: string;
-}
