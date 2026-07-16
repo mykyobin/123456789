@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import festivalJson from '../../netlify/functions/data/seoul-festivals.json'
 import {
+  COMMUNITY_STORAGE_KEY,
   createCommunityPost,
-  createLocalCommunityPost,
   deleteCommunityPost,
-  fetchCommunityPosts,
   loadLocalCommunityPosts,
   updateCommunityPost,
 } from '../community/api'
 import type { CommunityPost } from '../../shared/community-contract'
 
-const endpoint = '/api/community'
 const isLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -131,6 +129,7 @@ function resetForm(): void {
 }
 
 function openEdit(post: CommunityPost): void {
+  closeDelete()
   editingPostId.value = post.id
   editTitle.value = post.title
   editContent.value = post.content
@@ -155,6 +154,7 @@ function closeEdit(): void {
 }
 
 function openDelete(post: CommunityPost): void {
+  closeEdit()
   deletingPostId.value = post.id
   deletePassword.value = ''
   errorMessage.value = ''
@@ -170,9 +170,9 @@ async function loadPosts(): Promise<void> {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    posts.value = await fetchCommunityPosts(endpoint)
-  } catch (error) {
     posts.value = loadLocalCommunityPosts()
+  } catch (error) {
+    posts.value = []
     errorMessage.value =
       error instanceof Error
         ? error.message
@@ -188,7 +188,7 @@ async function submitPost(): Promise<void> {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const newPost = await createCommunityPost(endpoint, {
+    const newPost = await createCommunityPost({
       title: draftTitle.value.trim(),
       content: draftContent.value.trim(),
       password: draftPassword.value,
@@ -199,34 +199,12 @@ async function submitPost(): Promise<void> {
     })
     posts.value = [newPost, ...posts.value]
     resetForm()
-    successMessage.value = '게시글이 등록되었습니다.'
+    successMessage.value = '게시글이 이 브라우저에 저장되었습니다.'
   } catch (error) {
-    if (error instanceof Error) {
-      errorMessage.value = error.message
-    } else {
-      errorMessage.value = '게시글 등록 중 오류가 발생했습니다.'
-    }
-
-    try {
-      const newPost = await createLocalCommunityPost({
-        title: draftTitle.value.trim(),
-        content: draftContent.value.trim(),
-        password: draftPassword.value,
-        category: draftCategory.value,
-        festivalName: draftFestivalName.value.trim() || undefined,
-        partyDate: draftPartyDate.value || undefined,
-        rating: draftRating.value ?? undefined,
-      })
-      posts.value = [newPost, ...posts.value]
-      resetForm()
-      successMessage.value = '서버 연결 없이 로컬에 게시글이 저장되었습니다.'
-      errorMessage.value = ''
-    } catch (fallbackError) {
-      errorMessage.value =
-        fallbackError instanceof Error
-          ? fallbackError.message
-          : '게시글 등록 중 오류가 발생했습니다.'
-    }
+    errorMessage.value =
+      error instanceof Error
+        ? error.message
+        : '게시글 등록 중 오류가 발생했습니다.'
   } finally {
     isLoading.value = false
   }
@@ -238,7 +216,7 @@ async function saveEdit(): Promise<void> {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const updatedPost = await updateCommunityPost(endpoint, editingPostId.value, {
+    const updatedPost = await updateCommunityPost(editingPostId.value, {
       title: editTitle.value.trim(),
       content: editContent.value.trim(),
       password: editPassword.value,
@@ -269,7 +247,7 @@ async function confirmDelete(): Promise<void> {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    await deleteCommunityPost(endpoint, deletingPostId.value, {
+    await deleteCommunityPost(deletingPostId.value, {
       password: deletePassword.value,
     })
     posts.value = posts.value.filter((post) => post.id !== deletingPostId.value)
@@ -285,8 +263,19 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
+function handleStorageChange(event: StorageEvent): void {
+  if (event.key === COMMUNITY_STORAGE_KEY) {
+    void loadPosts()
+  }
+}
+
 onMounted(() => {
   void loadPosts()
+  window.addEventListener('storage', handleStorageChange)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', handleStorageChange)
 })
 </script>
 
@@ -296,7 +285,7 @@ onMounted(() => {
       <div>
         <span class="section-kicker">커뮤니티</span>
         <h2>익명 게시판</h2>
-        <p>서울 지역 이야기를 나누고, 수정/삭제는 작성 시 설정한 비밀번호로 확인합니다.</p>
+        <p>서울 지역 이야기를 나눠보세요. 게시글은 현재 브라우저에 저장되며, 작성 시 설정한 비밀번호로 수정하거나 삭제할 수 있습니다.</p>
       </div>
     </div>
 
@@ -354,7 +343,7 @@ onMounted(() => {
         </label>
         <label>
           비밀번호
-          <input v-model="draftPassword" type="password" placeholder="수정/삭제용 비밀번호" />
+          <input v-model="draftPassword" type="password" placeholder="수정/삭제용 비밀번호" autocomplete="new-password" />
         </label>
         <div class="form-actions">
           <button @click="submitPost" :disabled="!canCreate || isLoading">
@@ -374,8 +363,8 @@ onMounted(() => {
           <span v-else>{{ posts.length }}개</span>
         </div>
 
-        <p class="alert error" v-if="errorMessage">{{ errorMessage }}</p>
-        <p class="alert success" v-if="successMessage">{{ successMessage }}</p>
+        <p class="alert error" v-if="errorMessage" role="alert">{{ errorMessage }}</p>
+        <p class="alert success" v-if="successMessage" role="status">{{ successMessage }}</p>
 
         <template v-if="posts.length > 0">
           <article v-for="post in posts" :key="post.id" class="community-post">
@@ -385,8 +374,8 @@ onMounted(() => {
             </div>
             <p class="post-content">{{ post.content }}</p>
             <div class="post-actions">
-              <button @click="openEdit(post)">수정</button>
-              <button class="secondary" @click="openDelete(post)">삭제</button>
+              <button @click="openEdit(post)" :disabled="isLoading">수정</button>
+              <button class="secondary" @click="openDelete(post)" :disabled="isLoading">삭제</button>
             </div>
 
             <div class="post-meta-extra">
@@ -448,7 +437,7 @@ onMounted(() => {
               </label>
               <label>
                 비밀번호
-                <input v-model="editPassword" type="password" />
+                <input v-model="editPassword" type="password" autocomplete="current-password" />
               </label>
               <div class="form-actions">
                 <button @click="saveEdit" :disabled="!canSaveEdit || isLoading">저장</button>
@@ -459,7 +448,7 @@ onMounted(() => {
             <div v-if="deletingPostId === post.id" class="delete-panel">
               <label>
                 비밀번호
-                <input v-model="deletePassword" type="password" />
+                <input v-model="deletePassword" type="password" autocomplete="current-password" />
               </label>
               <div class="form-actions">
                 <button @click="confirmDelete" :disabled="!deletePassword || isLoading">삭제</button>
@@ -657,6 +646,20 @@ button:not(:disabled):hover {
 .post-actions {
   display: flex;
   gap: 12px;
+}
+
+.post-meta-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 14px;
+  color: #5b6a82;
+  font-size: 13px;
+}
+
+.post-category {
+  font-weight: 700;
+  color: #3156b8;
 }
 
 .edit-panel,
