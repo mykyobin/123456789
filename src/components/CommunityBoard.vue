@@ -154,6 +154,18 @@ function closeDelete(): void {
   deletePassword.value = ''
 }
 
+function delayHideDraftFestivalSuggestions(): void {
+  setTimeout(() => {
+    showDraftFestivalSuggestions.value = false
+  }, 150)
+}
+
+function delayHideEditFestivalSuggestions(): void {
+  setTimeout(() => {
+    showEditFestivalSuggestions.value = false
+  }, 150)
+}
+
 async function loadPosts(): Promise<void> {
   isLoading.value = true
   errorMessage.value = ''
@@ -307,9 +319,9 @@ onMounted(() => {
           축제 이름
           <input
             v-model="draftFestivalName"
-            @focus="showDraftFestivalSuggestions.value = true"
-            @input="showDraftFestivalSuggestions.value = true"
-            @blur="setTimeout(() => (showDraftFestivalSuggestions.value = false), 150)"
+            @focus="showDraftFestivalSuggestions = true"
+            @input="showDraftFestivalSuggestions = true"
+            @blur="delayHideDraftFestivalSuggestions"
             type="text"
             placeholder="축제 이름을 입력하세요"
             autocomplete="off"
@@ -403,9 +415,9 @@ onMounted(() => {
                 축제 이름
                 <input
                   v-model="editFestivalName"
-                  @focus="showEditFestivalSuggestions.value = true"
-                  @input="showEditFestivalSuggestions.value = true"
-                  @blur="setTimeout(() => (showEditFestivalSuggestions.value = false), 150)"
+                  @focus="showEditFestivalSuggestions = true"
+                  @input="showEditFestivalSuggestions = true"
+                  @blur="delayHideEditFestivalSuggestions"
                   type="text"
                 />
                 <ul
