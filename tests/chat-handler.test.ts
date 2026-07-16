@@ -70,6 +70,8 @@ describe('Netlify chat Function', () => {
     expect(body.meta.mode).toBe('fallback')
     expect(body.sources[0]?.title).toBe('문학주간 2026')
     expect(body.reply).toContain('문학주간 2026')
+    expect(body.suggestedQuestions).toHaveLength(3)
+    expect(body.recoveryRequired).toBe(false)
   })
 })
 
@@ -88,6 +90,24 @@ it('인사말을 축제 검색 실패로 처리하지 않는다', async () => {
   expect(body.sources).toEqual([])
   expect(body.reply).toContain('안녕하세요')
   expect(body.reply).not.toContain('관련 정보를 찾지 못했습니다')
+  expect(body.suggestedQuestions).toHaveLength(3)
+  expect(body.recoveryRequired).toBe(false)
+})
+
+it('검색 결과가 없으면 처음으로 복구 상태를 반환한다', async () => {
+  const response = await handler(
+    new Request('http://localhost/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: '존재하지않는축제이름 가나다라마바 알려줘' }),
+    }),
+  )
+
+  const body = (await response.json()) as FestivalChatResponse
+  expect(body.meta.intent).toBe('festival')
+  expect(body.sources).toEqual([])
+  expect(body.suggestedQuestions).toHaveLength(3)
+  expect(body.recoveryRequired).toBe(true)
 })
 
 it('자기소개 질문에 자연스럽게 답한다', async () => {

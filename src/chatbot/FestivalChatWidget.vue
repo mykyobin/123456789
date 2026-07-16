@@ -30,6 +30,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   open: []
   close: []
+  'show-on-map': [source: FestivalSource]
+  'reset-map-focus': []
 }>()
 
 const isOpen = ref(props.initiallyOpen)
@@ -38,6 +40,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const messagesRef = ref<HTMLElement | null>(null)
+const recoveryRequired = ref(false)
 let activeController: AbortController | null = null
 
 function createId(): string {
@@ -46,11 +49,13 @@ function createId(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-const quickQuestions = [
+const defaultQuickQuestions = [
   '오늘 진행 중인 축제 알려줘',
   '이번 달 무료 축제 알려줘',
   '종로구 축제 찾아줘',
 ]
+
+const suggestedQuestions = ref<string[]>([...defaultQuickQuestions])
 
 const messages = ref<ChatMessage[]>([
   {
@@ -96,6 +101,26 @@ function statusLabel(source: FestivalSource): string {
   return labels[source.status]
 }
 
+function canShowOnMap(source: FestivalSource): boolean {
+  const latitude = source.latitude
+  const longitude = source.longitude
+
+  return (
+    latitude !== null &&
+    longitude !== null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= 37.4 &&
+    latitude <= 37.75 &&
+    longitude >= 126.7 &&
+    longitude <= 127.3
+  )
+}
+
+function mappableSources(sources: FestivalSource[] | undefined): FestivalSource[] {
+  return (sources ?? []).filter(canShowOnMap)
+}
+
 async function scrollToLatest(): Promise<void> {
   await nextTick()
   if (messagesRef.value) {
@@ -122,6 +147,38 @@ function closeWidget(): void {
 function toggleWidget(): void {
   if (isOpen.value) closeWidget()
   else openWidget()
+}
+
+function showOnMap(source: FestivalSource): void {
+  if (!canShowOnMap(source)) return
+
+  if (window.matchMedia('(max-width: 640px)').matches) {
+    closeWidget()
+  }
+
+  emit('show-on-map', source)
+}
+
+function resetChat(): void {
+  activeController?.abort()
+  activeController = null
+  isLoading.value = false
+  draft.value = ''
+  errorMessage.value = ''
+  recoveryRequired.value = false
+  suggestedQuestions.value = [...defaultQuickQuestions]
+  messages.value = [
+    {
+      id: createId(),
+      role: 'assistant',
+      content: props.welcomeMessage,
+      createdAt: new Date(),
+      mode: 'search',
+    },
+  ]
+  emit('reset-map-focus')
+  void scrollToLatest()
+  void focusInput()
 }
 
 function createUserMessage(content: string): ChatMessage {
@@ -168,6 +225,7 @@ async function sendQuestion(questionOverride?: string): Promise<void> {
     }))
 
   errorMessage.value = ''
+  recoveryRequired.value = false
   draft.value = ''
   messages.value.push(createUserMessage(question))
   isLoading.value = true
@@ -192,6 +250,12 @@ async function sendQuestion(questionOverride?: string): Promise<void> {
         result.warning,
       ),
     )
+    const nextSuggestedQuestions = result.suggestedQuestions?.slice(0, 3) ?? []
+    suggestedQuestions.value =
+      nextSuggestedQuestions.length > 0
+        ? nextSuggestedQuestions
+        : [...defaultQuickQuestions]
+    recoveryRequired.value = Boolean(result.recoveryRequired)
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') return
 
@@ -203,6 +267,8 @@ async function sendQuestion(questionOverride?: string): Promise<void> {
     } else {
       errorMessage.value = '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
     }
+    suggestedQuestions.value = [...defaultQuickQuestions]
+    recoveryRequired.value = true
   } finally {
     isLoading.value = false
     activeController = null
@@ -291,6 +357,30 @@ onBeforeUnmount(() => {
                   {{ message.warning }}
                 </p>
 
+                <div
+                  v-if="message.role === 'assistant' && mappableSources(message.sources).length"
+                  class="map-actions"
+                  aria-label="답변한 축제 지도 이동"
+                >
+                  <button
+                    v-for="source in mappableSources(message.sources)"
+                    :key="`map-${message.id}-${source.contentId}`"
+                    type="button"
+                    class="map-action-button"
+                    :aria-label="`${source.title} 위치를 지도에서 보기`"
+                    @click="showOnMap(source)"
+                  >
+                    <span aria-hidden="true">📍</span>
+                    <span>
+                      {{
+                        mappableSources(message.sources).length === 1
+                          ? '지도에서 보기'
+                          : `${source.title} 지도에서 보기`
+                      }}
+                    </span>
+                  </button>
+                </div>
+
                 <details
                   v-if="showSources && message.sources?.length"
                   class="sources"
@@ -353,17 +443,6 @@ onBeforeUnmount(() => {
             </article>
           </div>
 
-          <div v-if="messages.length === 1" class="quick-questions">
-            <button
-              v-for="question in quickQuestions"
-              :key="question"
-              type="button"
-              @click="sendQuestion(question)"
-            >
-              {{ question }}
-            </button>
-          </div>
-
           <p v-if="errorMessage" class="error-message" role="alert">
             {{ errorMessage }}
           </p>
@@ -392,6 +471,34 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
+
+            <div
+              v-if="suggestedQuestions.length"
+              class="quick-questions"
+              aria-label="연관 추천 질문"
+            >
+              <button
+                v-for="question in suggestedQuestions"
+                :key="question"
+                type="button"
+                :disabled="isLoading"
+                @click="sendQuestion(question)"
+              >
+                {{ question }}
+              </button>
+            </div>
+
+            <div v-if="recoveryRequired || errorMessage" class="recovery-actions">
+              <button
+                type="button"
+                class="reset-chat-button"
+                aria-label="챗봇 대화를 처음 상태로 초기화"
+                @click="resetChat"
+              >
+                처음으로
+              </button>
+            </div>
+
             <div class="composer-meta">
               <span>AI 답변은 제공된 서울 축제 데이터만 참고합니다.</span>
               <span :class="{ 'is-over': remainingCharacters < 0 }">
@@ -450,7 +557,7 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 82px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   width: min(390px, calc(100vw - 32px));
   height: min(620px, calc(100vh - 126px));
   overflow: hidden;
@@ -636,6 +743,47 @@ onBeforeUnmount(() => {
   background: #fff8e8;
 }
 
+.map-actions {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.map-action-button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--chat-primary) 34%, #dfe5ef) !important;
+  border-radius: 11px;
+  color: var(--chat-primary);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  background: color-mix(in srgb, var(--chat-primary) 6%, white);
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.map-action-button:hover {
+  border-color: var(--chat-primary) !important;
+  background: color-mix(in srgb, var(--chat-primary) 11%, white);
+  transform: translateY(-1px);
+}
+
+.map-action-button span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message-stack time {
   color: #8a96aa;
   font-size: 10px;
@@ -793,9 +941,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 7px;
   overflow-x: auto;
-  padding: 10px 14px;
-  border-top: 1px solid #edf0f5;
-  background: #fff;
+  padding: 8px 0 0;
   scrollbar-width: none;
 }
 
@@ -822,6 +968,46 @@ onBeforeUnmount(() => {
   border-color: var(--chat-primary);
   color: var(--chat-primary);
   background: color-mix(in srgb, var(--chat-primary) 6%, white);
+}
+
+.quick-questions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.reset-chat-button {
+  min-height: 38px;
+  padding: 8px 14px;
+  cursor: pointer;
+  border: 1px solid #d8dfeb !important;
+  border-radius: 11px;
+  color: #50617c;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f7f9fc;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.reset-chat-button:hover {
+  border-color: var(--chat-primary) !important;
+  color: var(--chat-primary);
+  background: color-mix(in srgb, var(--chat-primary) 6%, white);
+}
+
+.map-action-button:focus-visible,
+.quick-questions button:focus-visible,
+.reset-chat-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--chat-primary) 22%, transparent);
+  outline-offset: 2px;
 }
 
 .error-message {

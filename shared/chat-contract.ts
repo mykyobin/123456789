@@ -33,6 +33,8 @@ export interface FestivalChatRequest {
 export interface FestivalChatResponse {
   reply: string
   sources: FestivalSource[]
+  suggestedQuestions: string[]
+  recoveryRequired: boolean
   meta: {
     mode: ChatMode
     intent: ChatIntent

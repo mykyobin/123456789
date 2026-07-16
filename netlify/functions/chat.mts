@@ -16,6 +16,7 @@ import {
 import { createConversationFallback } from './_shared/conversation-answer'
 import { createFallbackAnswer } from './_shared/festival-answer'
 import { searchFestivals } from './_shared/festival-search'
+import { createSuggestedQuestions } from './_shared/suggested-questions'
 
 const DEFAULT_MODEL = 'gpt-5-mini'
 const MAX_QUESTION_LENGTH = 300
@@ -208,6 +209,8 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const generatedAt = new Date().toISOString()
+  const suggestedQuestions = createSuggestedQuestions(intent, sources)
+  const recoveryRequired = intent === 'festival' && sources.length === 0
   const forceFallback = process.env.CHATBOT_FORCE_FALLBACK === 'true'
   const apiKey = process.env.OPENAI_API_KEY
   const model = process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL
@@ -221,6 +224,8 @@ export default async function handler(request: Request): Promise<Response> {
     const response: FestivalChatResponse = {
       reply,
       sources,
+      suggestedQuestions,
+      recoveryRequired,
       meta: {
         mode: 'fallback',
         intent,
@@ -253,6 +258,8 @@ export default async function handler(request: Request): Promise<Response> {
     const response: FestivalChatResponse = {
       reply,
       sources,
+      suggestedQuestions,
+      recoveryRequired,
       meta: {
         mode: 'llm',
         intent,
@@ -276,6 +283,8 @@ export default async function handler(request: Request): Promise<Response> {
           ? createConversationFallback(question)
           : createFallbackAnswer(sources),
       sources,
+      suggestedQuestions,
+      recoveryRequired,
       meta: {
         mode: 'fallback',
         intent,

@@ -11,55 +11,57 @@ import 'leaflet/dist/leaflet.css'
 
 import type { Festival } from '../types'
 
-// 부모 컴포넌트에서 필터링된 축제 배열을 전달받음
 const props = defineProps<{
   festivals: Festival[]
+  focusFestival?: Festival | null
+  focusRequestId?: number
 }>()
 
 const emit = defineEmits<{
   'select-festival': [festival: Festival]
 }>()
 
-// template의 지도 div를 가리키는 변수
 const mapContainer = ref<HTMLElement | null>(null)
 
-// Leaflet 지도 객체
 let map: L.Map | null = null
-
-// 지도 위의 마커들을 묶어서 관리하는 그룹
 let markerLayer: L.LayerGroup | null = null
+let focusMarkerLayer: L.LayerGroup | null = null
+let focusedContentId: string | null = null
 
-// 서울시청 주변 좌표
+const markerByContentId = new Map<string, L.Marker>()
+
 const SEOUL_CENTER: L.LatLngExpression = [
   37.5665,
   126.978,
 ]
 
 const SEOUL_ZOOM = 11
+const FOCUS_ZOOM = 15
 
-/*
- * Leaflet 기본 마커 이미지는 Vite 환경에서
- * 이미지 경로 문제가 생길 수 있으므로
- * HTML과 CSS로 직접 마커를 만듦
- */
 const festivalIcon = L.divIcon({
   className: 'festival-marker-shell',
-
   html: `
     <div class="festival-marker">
       <span>★</span>
     </div>
   `,
-
   iconSize: [38, 46],
   iconAnchor: [19, 46],
   popupAnchor: [0, -42],
 })
 
-/*
- * 팝업 HTML 안에 외부 데이터를 직접 넣기 전에
- * 특수문자를 안전한 HTML 문자로 변경
- */
+const focusedFestivalIcon = L.divIcon({
+  className: 'festival-marker-shell festival-marker-shell-focused',
+  html: `
+    <div class="festival-marker is-focused">
+      <span>★</span>
+    </div>
+  `,
+  iconSize: [44, 52],
+  iconAnchor: [22, 52],
+  popupAnchor: [0, -48],
+})
+
 const escapeHtml = (value = '') => {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -69,7 +71,6 @@ const escapeHtml = (value = '') => {
     .replaceAll("'", '&#039;')
 }
 
-// 20260916 → 2026.09.16
 const formatDate = (date?: string) => {
   if (!date || date.length !== 8) {
     return '일정 정보 없음'
@@ -82,7 +83,6 @@ const formatDate = (date?: string) => {
   ].join('.')
 }
 
-// 시작일과 종료일을 하나의 기간으로 표시
 const formatPeriod = (
   startDate?: string,
   endDate?: string,
@@ -98,10 +98,6 @@ const formatPeriod = (
   return `${formatDate(startDate)} ~ ${formatDate(endDate)}`
 }
 
-/*
- * 좌표가 숫자인지 확인하고,
- * 서울에서 너무 멀리 벗어난 데이터는 제외
- */
 const isValidSeoulCoordinate = (
   latitude: number,
   longitude: number,
@@ -116,7 +112,6 @@ const isValidSeoulCoordinate = (
   )
 }
 
-// 마커 클릭 시 나타날 팝업 HTML
 const createPopupContent = (festival: Festival) => {
   const imageArea = festival.firstimage
     ? `
@@ -190,10 +185,109 @@ const createPopupContent = (festival: Festival) => {
   `
 }
 
-/*
- * 현재 festivals 배열을 기준으로
- * 기존 마커를 지우고 다시 표시
- */
+function createFestivalMarker(
+  festival: Festival,
+  icon: L.DivIcon = festivalIcon,
+): L.Marker | null {
+  const latitude = Number(festival.mapy)
+  const longitude = Number(festival.mapx)
+
+  if (!isValidSeoulCoordinate(latitude, longitude)) {
+    return null
+  }
+
+  const marker = L.marker(
+    [latitude, longitude],
+    {
+      icon,
+      title: festival.title,
+    },
+  )
+
+  marker.on('click', () => {
+    emit('select-festival', festival)
+  })
+
+  marker.bindPopup(
+    createPopupContent(festival),
+    {
+      minWidth: 260,
+      maxWidth: 290,
+      autoPan: false,
+    },
+  )
+
+  return marker
+}
+
+function clearFocusedMarker(): void {
+  if (focusedContentId) {
+    markerByContentId
+      .get(focusedContentId)
+      ?.setIcon(festivalIcon)
+  }
+
+  focusMarkerLayer?.clearLayers()
+  focusedContentId = null
+}
+
+function applyFocusedFestival(moveMap: boolean): void {
+  if (!map || !focusMarkerLayer) return
+
+  const festival = props.focusFestival
+  if (!festival || !props.focusRequestId) {
+    clearFocusedMarker()
+    return
+  }
+
+  const latitude = Number(festival.mapy)
+  const longitude = Number(festival.mapx)
+
+  if (!isValidSeoulCoordinate(latitude, longitude)) {
+    clearFocusedMarker()
+    return
+  }
+
+  clearFocusedMarker()
+
+  let marker = markerByContentId.get(festival.contentid) ?? null
+
+  if (marker) {
+    marker.setIcon(focusedFestivalIcon)
+  } else {
+    marker = createFestivalMarker(festival, focusedFestivalIcon)
+    marker?.addTo(focusMarkerLayer)
+  }
+
+  if (!marker) return
+
+  focusedContentId = festival.contentid
+
+  if (!moveMap) return
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  if (reduceMotion) {
+    map.setView([latitude, longitude], FOCUS_ZOOM)
+    marker.openPopup()
+    return
+  }
+
+  map.flyTo(
+    [latitude, longitude],
+    FOCUS_ZOOM,
+    {
+      animate: true,
+      duration: 0.85,
+      easeLinearity: 0.25,
+    },
+  )
+
+  window.setTimeout(() => {
+    marker?.openPopup()
+  }, 360)
+}
+
 const renderMarkers = (
   fitToMarkers = false,
 ) => {
@@ -201,76 +295,33 @@ const renderMarkers = (
     return
   }
 
-  // null이 아니라는 사실을 지역 변수에 저장
   const currentMap = map
   const currentMarkerLayer = markerLayer
 
   currentMarkerLayer.clearLayers()
+  markerByContentId.clear()
 
   const bounds: L.LatLngExpression[] = []
 
   props.festivals.forEach((festival) => {
-    /*
-     * JSON의 좌표값은 문자열이므로
-     * Number()로 숫자로 변환
-     *
-     * mapy = 위도
-     * mapx = 경도
-     */
-    const latitude = Number(festival.mapy)
-    const longitude = Number(festival.mapx)
-
-    if (
-      !isValidSeoulCoordinate(
-        latitude,
-        longitude,
-      )
-    ) {
-      return
-    }
-
-    const marker = L.marker(
-      [latitude, longitude],
-      {
-        icon: festivalIcon,
-        title: festival.title,
-      },
-    )
-
-    marker.on('click', () => {
-      emit('select-festival', festival)
-    })
-
-    marker.bindPopup(
-      createPopupContent(festival),
-      {
-        minWidth: 260,
-        maxWidth: 290,
-      },
-    )
+    const marker = createFestivalMarker(festival)
+    if (!marker) return
 
     marker.addTo(currentMarkerLayer)
+    markerByContentId.set(festival.contentid, marker)
 
-    bounds.push([latitude, longitude])
+    bounds.push([
+      Number(festival.mapy),
+      Number(festival.mapx),
+    ])
   })
 
-  /*
-   * 최초 화면에서는 무조건 서울 중심으로 표시
-   */
   if (!fitToMarkers) {
     currentMap.setView(
       SEOUL_CENTER,
       SEOUL_ZOOM,
     )
-
-    return
-  }
-
-  /*
-   * 필터가 변경됐을 때는
-   * 현재 남아 있는 마커들이 보이도록 지도 이동
-   */
-  if (bounds.length > 0) {
+  } else if (bounds.length > 0) {
     currentMap.fitBounds(
       L.latLngBounds(bounds),
       {
@@ -284,9 +335,10 @@ const renderMarkers = (
       SEOUL_ZOOM,
     )
   }
+
+  applyFocusedFestival(false)
 }
 
-// 컴포넌트가 화면에 나타난 뒤 지도 생성
 onMounted(() => {
   if (!mapContainer.value) {
     return
@@ -297,52 +349,38 @@ onMounted(() => {
     {
       center: SEOUL_CENTER,
       zoom: SEOUL_ZOOM,
-
-      // 너무 멀리 축소되는 것 방지
       minZoom: 10,
-
-      // 서울에서 지나치게 멀리 이동하는 것 제한
       maxBounds: [
         [37.3, 126.55],
         [37.85, 127.45],
       ],
-
       maxBoundsViscosity: 0.7,
     },
   )
 
-  // OpenStreetMap 지도 배경
   L.tileLayer(
     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     {
       maxZoom: 19,
-
       attribution:
         '&copy; OpenStreetMap contributors',
     },
   ).addTo(map)
 
-  // 마커를 관리할 레이어 그룹 생성
   markerLayer = L.layerGroup().addTo(map)
+  focusMarkerLayer = L.layerGroup().addTo(map)
 
-  // 최초 마커 표시
   renderMarkers(false)
 
-  /*
-   * 화면 레이아웃 계산이 끝난 뒤
-   * 지도 크기를 다시 계산
-   */
+  if (props.focusFestival && props.focusRequestId) {
+    applyFocusedFestival(true)
+  }
+
   window.setTimeout(() => {
     map?.invalidateSize()
   }, 0)
 })
 
-/*
- * 부모에서 전달된 축제 배열이 바뀌면
- * 마커를 다시 그림
- *
- * 이후 자치구·기간 필터와 연결하면 실행됨
- */
 watch(
   () => props.festivals,
   () => {
@@ -350,12 +388,24 @@ watch(
   },
 )
 
-// 페이지에서 지도 컴포넌트가 제거될 때 정리
+watch(
+  [
+    () => props.focusRequestId,
+    () => props.focusFestival,
+  ],
+  () => {
+    applyFocusedFestival(Boolean(props.focusFestival))
+  },
+)
+
 onBeforeUnmount(() => {
+  clearFocusedMarker()
+  markerByContentId.clear()
   map?.remove()
 
   map = null
   markerLayer = null
+  focusMarkerLayer = null
 })
 </script>
 
@@ -423,6 +473,20 @@ onBeforeUnmount(() => {
   transform:
     translateX(-50%)
     rotate(45deg);
+}
+
+.festival-marker.is-focused {
+  width: 42px;
+  height: 42px;
+  background: #6548e8;
+  box-shadow:
+    0 10px 24px rgba(73, 50, 190, 0.42),
+    0 0 0 6px rgba(101, 72, 232, 0.18);
+  transform: translateY(-2px);
+}
+
+.festival-marker.is-focused::after {
+  background: #6548e8;
 }
 
 /* =========================

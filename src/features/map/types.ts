@@ -36,3 +36,11 @@ export interface FestivalDataset {
   total: number
   items: Festival[]
 }
+
+export interface FestivalMapFocusRequest {
+  requestId: number
+  contentId: string
+  title: string
+  latitude: number
+  longitude: number
+}
