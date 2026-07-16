@@ -16,6 +16,10 @@ const props = defineProps<{
   festivals: Festival[]
 }>()
 
+const emit = defineEmits<{
+  'select-festival': [festival: Festival]
+}>()
+
 // template의 지도 div를 가리키는 변수
 const mapContainer = ref<HTMLElement | null>(null)
 
@@ -232,6 +236,10 @@ const renderMarkers = (
         title: festival.title,
       },
     )
+
+    marker.on('click', () => {
+      emit('select-festival', festival)
+    })
 
     marker.bindPopup(
       createPopupContent(festival),
