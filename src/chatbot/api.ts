@@ -1,4 +1,5 @@
 import type {
+  ChatHistoryMessage,
   FestivalChatErrorBody,
   FestivalChatRequest,
   FestivalChatResponse,
@@ -19,9 +20,10 @@ export class FestivalChatApiError extends Error {
 export async function askFestivalChat(
   endpoint: string,
   question: string,
+  history: ChatHistoryMessage[] = [],
   signal?: AbortSignal,
 ): Promise<FestivalChatResponse> {
-  const payload: FestivalChatRequest = { question }
+  const payload: FestivalChatRequest = { question, history }
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {

@@ -1,0 +1,17 @@
+warning: in the working copy of '.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/VERIFICATION_REPORT.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'netlify/functions/chat.mts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shared/chat-contract.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/chatbot/FestivalChatWidget.vue', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/chatbot/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/CommunityBoard.vue', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/chat-handler.test.ts', LF will be replaced by CRLF the next time Git touches it
+ .env.example                       |   2 [32m+[m[31m-[m
+ docs/VERIFICATION_REPORT.md        |   6 [32m+[m[31m-[m
+ netlify/functions/chat.mts         | 171 [32m++++++++++++++++++++++++++++[m[31m---------[m
+ shared/chat-contract.ts            |   9 [32m++[m
+ src/chatbot/FestivalChatWidget.vue |   9 [32m++[m
+ src/chatbot/api.ts                 |   4 [32m+[m[31m-[m
+ src/components/CommunityBoard.vue  |  74 [32m+++++[m[31m-----------[m
+ tests/chat-handler.test.ts         |  52 [32m+++++++++++[m
+ 8 files changed, 227 insertions(+), 100 deletions(-)

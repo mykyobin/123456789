@@ -1,4 +1,11 @@
 export type ChatMode = 'llm' | 'fallback' | 'search'
+export type ChatIntent = 'conversation' | 'festival'
+export type ChatRole = 'user' | 'assistant'
+
+export interface ChatHistoryMessage {
+  role: ChatRole
+  content: string
+}
 
 export interface FestivalSource {
   contentId: string
@@ -20,6 +27,7 @@ export interface FestivalSource {
 
 export interface FestivalChatRequest {
   question: string
+  history?: ChatHistoryMessage[]
 }
 
 export interface FestivalChatResponse {
@@ -27,6 +35,7 @@ export interface FestivalChatResponse {
   sources: FestivalSource[]
   meta: {
     mode: ChatMode
+    intent: ChatIntent
     model?: string
     requestId?: string
     resultCount: number
