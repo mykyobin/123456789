@@ -81,6 +81,18 @@ function selectEditFestivalName(value: string): void {
   showEditFestivalSuggestions.value = false
 }
 
+function hideDraftFestivalSuggestions(): void {
+  window.setTimeout(() => {
+    showDraftFestivalSuggestions.value = false
+  }, 150)
+}
+
+function hideEditFestivalSuggestions(): void {
+  window.setTimeout(() => {
+    showEditFestivalSuggestions.value = false
+  }, 150)
+}
+
 const canCreate = computed(
   () => {
     const hasBaseFields =
@@ -152,18 +164,6 @@ function openDelete(post: CommunityPost): void {
 function closeDelete(): void {
   deletingPostId.value = null
   deletePassword.value = ''
-}
-
-function delayHideDraftFestivalSuggestions(): void {
-  setTimeout(() => {
-    showDraftFestivalSuggestions.value = false
-  }, 150)
-}
-
-function delayHideEditFestivalSuggestions(): void {
-  setTimeout(() => {
-    showEditFestivalSuggestions.value = false
-  }, 150)
 }
 
 async function loadPosts(): Promise<void> {
@@ -321,19 +321,16 @@ onMounted(() => {
             v-model="draftFestivalName"
             @focus="showDraftFestivalSuggestions = true"
             @input="showDraftFestivalSuggestions = true"
-            @blur="delayHideDraftFestivalSuggestions"
-            type="search"
+            @blur="hideDraftFestivalSuggestions"
+            type="text"
             placeholder="축제 이름을 입력하세요"
             autocomplete="off"
           />
           <ul
-            v-if="showDraftFestivalSuggestions"
+            v-if="draftFestivalSuggestions.length > 0"
             v-show="showDraftFestivalSuggestions"
             class="suggestion-list"
           >
-            <li v-if="draftFestivalName && draftFestivalSuggestions.length === 0" class="no-results">
-              일치하는 축제가 없습니다.
-            </li>
             <li
               v-for="suggestion in draftFestivalSuggestions"
               :key="suggestion"
@@ -420,17 +417,14 @@ onMounted(() => {
                   v-model="editFestivalName"
                   @focus="showEditFestivalSuggestions = true"
                   @input="showEditFestivalSuggestions = true"
-                  @blur="delayHideEditFestivalSuggestions"
-                  type="search"
+                  @blur="hideEditFestivalSuggestions"
+                  type="text"
                 />
                 <ul
-                  v-if="showEditFestivalSuggestions"
+                  v-if="editFestivalSuggestions.length > 0"
                   v-show="showEditFestivalSuggestions"
                   class="suggestion-list"
                 >
-                  <li v-if="editFestivalName && editFestivalSuggestions.length === 0" class="no-results">
-                    일치하는 축제가 없습니다.
-                  </li>
                   <li
                     v-for="suggestion in editFestivalSuggestions"
                     :key="suggestion"
@@ -537,36 +531,13 @@ onMounted(() => {
 
 .autocomplete-field {
   position: relative;
-  overflow: visible;
-  z-index: 0;
-}
-
-.autocomplete-field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 12px 14px;
-  border: 1px solid #d8dee8;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #172033;
-  font-size: 14px;
-}
-
-.autocomplete-field input:focus {
-  outline: none;
-  border-color: #3165ff;
-  box-shadow: 0 0 0 4px rgba(49, 101, 255, 0.12);
-}
-
-.autocomplete-field input::placeholder {
-  color: #9b9ebf;
 }
 
 .suggestion-list {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 6px);
+  margin: 6px 0 0;
   padding: 8px 0;
   border: 1px solid #d8dee8;
   border-radius: 14px;
@@ -575,7 +546,7 @@ onMounted(() => {
   list-style: none;
   max-height: 220px;
   overflow-y: auto;
-  z-index: 20;
+  z-index: 10;
 }
 
 .suggestion-list li {
@@ -583,11 +554,6 @@ onMounted(() => {
   cursor: pointer;
   color: #172033;
   font-size: 14px;
-}
-
-.suggestion-list li.no-results {
-  cursor: default;
-  color: #7c879a;
 }
 
 .suggestion-list li:hover {

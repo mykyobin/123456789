@@ -79,7 +79,7 @@ GET /api/chat
 ```text
 원본: 제공받은 `서울_축제공연행사.json`
 프로젝트: netlify/functions/data/seoul-festivals.json
-SHA-256: 31f80360e3c71ea0ff072e6a6c6cb67affde59dec201c1c6077fae5593e8754a
+SHA-256: 8456d828cf582c2765f6a28fee99913f5506d9d461e3146a3ee14261fcf99921
 ```
 
 판정:
@@ -105,8 +105,8 @@ SHA-256: 31f80360e3c71ea0ff072e6a6c6cb67affde59dec201c1c6077fae5593e8754a
 | Function에서 `process.env.OPENAI_API_KEY` 사용 | 확인 |
 | 질문 길이 제한 | 300자 |
 | 검색 결과 제한 | 최대 5건 |
-| LLM 출력 제한 | 최대 500토큰 |
-| 검색 결과 없음 시 LLM 호출 | 하지 않음 |
+| LLM 출력 제한 | 최대 1,200 출력 토큰 |
+| 검색 결과 없음 시 LLM 호출 | 일반 대화는 LLM 호출, 축제 질문은 확인 질문 생성 |
 | LLM 실패 시 복구 | 검색 기반 답변 반환 |
 | 응답 캐시 | `no-store` |
 

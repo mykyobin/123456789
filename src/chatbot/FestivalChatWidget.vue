@@ -159,6 +159,14 @@ async function sendQuestion(questionOverride?: string): Promise<void> {
     return
   }
 
+  const history = messages.value
+    .slice(1)
+    .slice(-8)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+
   errorMessage.value = ''
   draft.value = ''
   messages.value.push(createUserMessage(question))
@@ -172,6 +180,7 @@ async function sendQuestion(questionOverride?: string): Promise<void> {
     const result = await askFestivalChat(
       props.apiEndpoint,
       question,
+      history,
       activeController.signal,
     )
 
