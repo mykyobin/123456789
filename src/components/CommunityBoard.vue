@@ -537,6 +537,8 @@ onMounted(() => {
 
 .autocomplete-field {
   position: relative;
+  overflow: visible;
+  z-index: 0;
 }
 
 .autocomplete-field input {
