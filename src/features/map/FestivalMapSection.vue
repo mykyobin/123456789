@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import FestivalFilter from './components/FestivalFilter.vue'
 import FestivalMap from './components/FestivalMap.vue'
 
 import festivalJson from '../../../netlify/functions/data/seoul-festivals.json'
+
+import WeatherSummaryCard from '../weather/components/WeatherSummaryCard.vue'
+
+import {
+  fetchWeatherForecast,
+  getWeatherAvailability,
+} from '../weather/services/openMeteo'
+
+import type {
+  WeatherForecast,
+  WeatherRequestStatus,
+} from '../weather/types'
 
 import type {
   Festival,
@@ -17,8 +29,34 @@ const festivalData =
 
 // 사용자가 선택한 필터값
 const selectedDistrict = ref('전체')
-const selectedStartDate = ref('')
-const selectedEndDate = ref('')
+
+// 사용자가 실제 축제에 방문하려는 날짜
+const selectedVisitDate = ref('')
+
+// 지도에서 선택한 축제
+const selectedFestival =
+  ref<Festival | null>(null)
+
+// 날씨 조회 상태
+const weatherStatus =
+  ref<WeatherRequestStatus>('idle')
+
+const weatherForecast =
+  ref<WeatherForecast | null>(null)
+
+const weatherMessage = ref(
+  '방문 날짜를 선택하면 서울 중심 기준 날씨를 확인할 수 있습니다.',
+)
+
+// 이전 요청보다 늦게 끝난 응답이
+// 최신 결과를 덮어쓰는 문제 방지
+let weatherRequestSequence = 0
+
+const SEOUL_WEATHER_POINT = {
+  latitude: 37.5665,
+  longitude: 126.978,
+  locationLabel: '서울시청 기준',
+}
 
 /*
  * 주소에서 자치구 이름 추출
@@ -81,17 +119,6 @@ const normalizeInputDate = (date: string) => {
   return date.replaceAll('-', '')
 }
 
-/*
- * 시작일이 종료일보다 늦은지 확인
- */
-const isInvalidDateRange = computed(() => {
-  return Boolean(
-    selectedStartDate.value &&
-      selectedEndDate.value &&
-      selectedStartDate.value >
-        selectedEndDate.value,
-  )
-})
 
 /*
  * 필터가 하나라도 적용되어 있는지 확인
@@ -99,89 +126,246 @@ const isInvalidDateRange = computed(() => {
 const hasActiveFilter = computed(() => {
   return (
     selectedDistrict.value !== '전체' ||
-    selectedStartDate.value !== '' ||
-    selectedEndDate.value !== ''
+    selectedVisitDate.value !== ''
   )
 })
 
 /*
  * 자치구와 기간을 모두 적용한 최종 축제 목록
  */
-const filteredFestivals = computed<Festival[]>(() => {
-  if (isInvalidDateRange.value) {
-    return []
-  }
+const filteredFestivals =
+  computed<Festival[]>(() => {
+    const visitDate =
+      normalizeInputDate(
+        selectedVisitDate.value,
+      )
 
-  const filterStart = normalizeInputDate(
-    selectedStartDate.value,
-  )
+    return festivals.filter(
+      (festival) => {
+        /*
+         * 1. 자치구 조건
+         */
+        const districtMatched =
+          selectedDistrict.value ===
+            '전체' ||
+          festival.district ===
+            selectedDistrict.value
 
-  const filterEnd = normalizeInputDate(
-    selectedEndDate.value,
-  )
+        if (!districtMatched) {
+          return false
+        }
 
-  return festivals.filter((festival) => {
-    /*
-     * 1. 자치구 조건 확인
-     */
-    const districtMatched =
-      selectedDistrict.value === '전체' ||
-      festival.district ===
-        selectedDistrict.value
+        /*
+         * 방문 날짜가 선택되지 않았으면
+         * 자치구 조건만 적용
+         */
+        if (!visitDate) {
+          return true
+        }
 
-    if (!districtMatched) {
-      return false
-    }
+        /*
+         * 날짜 데이터가 없는 축제는 제외
+         */
+        if (
+          !festival.eventstartdate
+        ) {
+          return false
+        }
 
-    /*
-     * 날짜 필터가 없으면
-     * 자치구 조건만 통과한 축제를 표시
-     */
-    if (!filterStart && !filterEnd) {
-      return true
-    }
+        const festivalStart =
+          festival.eventstartdate
 
-    /*
-     * 날짜 정보가 없는 축제는
-     * 날짜 필터 사용 시 제외
-     */
-    if (!festival.eventstartdate) {
-      return false
-    }
+        const festivalEnd =
+          festival.eventenddate ||
+          festival.eventstartdate
 
-    const festivalStart =
-      festival.eventstartdate
-
-    const festivalEnd =
-      festival.eventenddate ||
-      festival.eventstartdate
-
-    /*
-     * 선택 기간과 축제 기간이
-     * 하루라도 겹치는지 확인
-     */
-    const startsBeforeSelectedEnd =
-      !filterEnd ||
-      festivalStart <= filterEnd
-
-    const endsAfterSelectedStart =
-      !filterStart ||
-      festivalEnd >= filterStart
-
-    return (
-      startsBeforeSelectedEnd &&
-      endsAfterSelectedStart
+        /*
+         * 방문 날짜가 축제 기간 안에 포함되는지 확인
+         */
+        return (
+          festivalStart <= visitDate &&
+          festivalEnd >= visitDate
+        )
+      },
     )
   })
-})
+
+  
 
 /*
  * 필터 초기화
  */
+const handleSelectFestival = (
+  festival: Festival,
+) => {
+  selectedFestival.value = festival
+}
+
+const resolveWeatherTarget = () => {
+  const festival =
+    selectedFestival.value
+
+  if (festival) {
+    const latitude =
+      Number(festival.mapy)
+
+    const longitude =
+      Number(festival.mapx)
+
+    if (
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude)
+    ) {
+      return {
+        latitude,
+        longitude,
+
+        locationLabel:
+          `${festival.title} 개최지 기준`,
+      }
+    }
+  }
+
+  return SEOUL_WEATHER_POINT
+}
+
+const loadWeather = async () => {
+  const currentRequest =
+    ++weatherRequestSequence
+
+  weatherForecast.value = null
+
+  if (!selectedVisitDate.value) {
+    weatherStatus.value = 'idle'
+
+    weatherMessage.value =
+      '방문 날짜를 선택하면 서울 중심 기준 날씨를 확인할 수 있습니다.'
+
+    return
+  }
+
+  const availability =
+    getWeatherAvailability(
+      selectedVisitDate.value,
+    )
+
+  if (!availability.available) {
+    weatherStatus.value =
+      'unavailable'
+
+    weatherMessage.value =
+      availability.reason ||
+      '해당 날짜의 예보는 아직 제공되지 않습니다.'
+
+    return
+  }
+
+  const target =
+    resolveWeatherTarget()
+
+  weatherStatus.value = 'loading'
+
+  weatherMessage.value =
+    '날씨를 불러오는 중입니다.'
+
+  try {
+    const forecast =
+      await fetchWeatherForecast({
+        latitude: target.latitude,
+        longitude: target.longitude,
+        date: selectedVisitDate.value,
+        locationLabel:
+          target.locationLabel,
+      })
+
+    /*
+     * 사용자가 요청 중 다른 날짜나
+     * 다른 축제를 선택한 경우
+     * 이전 요청 결과를 무시
+     */
+    if (
+      currentRequest !==
+      weatherRequestSequence
+    ) {
+      return
+    }
+
+    weatherForecast.value =
+      forecast
+
+    weatherStatus.value =
+      'success'
+
+    weatherMessage.value = ''
+  } catch (error) {
+    if (
+      currentRequest !==
+      weatherRequestSequence
+    ) {
+      return
+    }
+
+    weatherStatus.value = 'error'
+
+    weatherMessage.value =
+      error instanceof Error
+        ? error.message
+        : '날씨를 불러오는 중 오류가 발생했습니다.'
+  }
+}
+
+/*
+ * 방문 날짜 또는 선택 축제가 바뀌면
+ * 날씨를 다시 조회
+ */
+watch(
+  [
+    selectedVisitDate,
+    selectedFestival,
+  ],
+  () => {
+    void loadWeather()
+  },
+  {
+    immediate: true,
+  },
+)
+
+/*
+ * 필터 변경으로 선택한 축제가
+ * 현재 검색 결과에서 사라졌다면 선택 해제
+ */
+watch(
+  filteredFestivals,
+  (currentFestivals) => {
+    const selected =
+      selectedFestival.value
+
+    if (!selected) {
+      return
+    }
+
+    const isStillVisible =
+      currentFestivals.some(
+        (festival) => {
+          return (
+            festival.contentid ===
+            selected.contentid
+          )
+        },
+      )
+
+    if (!isStillVisible) {
+      selectedFestival.value =
+        null
+    }
+  },
+)
+
 const resetFilters = () => {
   selectedDistrict.value = '전체'
-  selectedStartDate.value = ''
-  selectedEndDate.value = ''
+  selectedVisitDate.value = ''
+  selectedFestival.value = null
 }
 </script>
 
@@ -203,8 +387,8 @@ const resetFilters = () => {
         </h2>
 
         <p>
-          원하는 자치구와 기간을 선택하면
-          조건에 맞는 축제 위치만 지도에 표시됩니다.
+          원하는 자치구와 방문 예정일을 선택하면
+          그날 진행되는 축제와 날씨를 함께 확인할 수 있습니다.
         </p>
       </div>
 
@@ -229,7 +413,7 @@ const resetFilters = () => {
           <span>축제 검색 조건</span>
 
           <strong>
-            지역과 기간을 선택해 주세요.
+            지역과 방문 예정일을 선택해 주세요.
           </strong>
         </div>
 
@@ -250,56 +434,57 @@ const resetFilters = () => {
           :districts="districts"
         />
 
-        <!-- 시작일 필터 -->
         <div class="map-feature-date-field">
-          <label for="festival-start-date">
-            시작일
+          <label for="festival-visit-date">
+            방문 예정일
           </label>
 
-          <div class="map-feature-date-input">
-            <span aria-hidden="true">
-              📅
-            </span>
+        <div class="map-feature-date-input">
+          <span aria-hidden="true">
+            📅
+          </span>
 
-            <input
-              id="festival-start-date"
-              v-model="selectedStartDate"
-              type="date"
-              :max="selectedEndDate || undefined"
-            />
-          </div>
-        </div>
-
-        <!-- 종료일 필터 -->
-        <div class="map-feature-date-field">
-          <label for="festival-end-date">
-            종료일
-          </label>
-
-          <div class="map-feature-date-input">
-            <span aria-hidden="true">
-              📅
-            </span>
-
-            <input
-              id="festival-end-date"
-              v-model="selectedEndDate"
-              type="date"
-              :min="selectedStartDate || undefined"
-            />
-          </div>
+          <input
+            id="festival-visit-date"
+            v-model="selectedVisitDate"
+            type="date"
+          />
         </div>
       </div>
-
-      <p
-        v-if="isInvalidDateRange"
-        class="map-feature-error"
-      >
-        종료일은 시작일보다 빠를 수 없습니다.
-      </p>
+      </div>
     </div>
 
     <!-- 지도 영역 -->
+    <div
+      v-if="selectedFestival"
+      class="map-feature-selected"
+    >
+      <div>
+        <span>선택한 축제</span>
+
+        <strong>
+          {{ selectedFestival.title }}
+        </strong>
+      </div>
+
+      <p>
+        {{
+          selectedFestival.eventplace ||
+          selectedFestival.addr1 ||
+          '장소 정보 없음'
+        }}
+      </p>
+    </div>
+
+    <!-- 날씨 카드 추가 위치 -->
+    <WeatherSummaryCard
+      :status="weatherStatus"
+      :forecast="weatherForecast"
+      :message="weatherMessage"
+      :selected-date="selectedVisitDate"
+    />
+
+    <!-- 기존 지도 카드 -->
     <div class="map-feature-card">
       <div class="map-feature-card-header">
         <div>
@@ -315,6 +500,7 @@ const resetFilters = () => {
       <div class="map-feature-area">
         <FestivalMap
           :festivals="filteredFestivals"
+          @select-festival="handleSelectFestival"
         />
 
         <!-- 검색 결과가 없을 때 -->
@@ -340,6 +526,55 @@ const resetFilters = () => {
 </template>
 
 <style scoped>
+.map-feature-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  margin-bottom: 18px;
+  padding: 17px 20px;
+
+  border: 1px solid #cad6ff;
+  border-radius: 16px;
+  background: #edf2ff;
+}
+
+.map-feature-selected > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-feature-selected span {
+  color: #3165ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.map-feature-selected strong {
+  color: #172033;
+  font-size: 16px;
+}
+
+.map-feature-selected p {
+  margin: 0;
+
+  color: #69758c;
+  font-size: 13px;
+  text-align: right;
+}
+
+@media (max-width: 800px) {
+  .map-feature-selected {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .map-feature-selected p {
+    text-align: left;
+  }
+}
 .map-feature-section {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
@@ -468,7 +703,7 @@ const resetFilters = () => {
 
 .map-feature-filter-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
 
@@ -546,15 +781,6 @@ const resetFilters = () => {
 .map-feature-reset:hover {
   border-color: #8aa5ff;
   background: #e3eaff;
-}
-
-/* 오류 메시지 */
-
-.map-feature-error {
-  margin: 14px 0 0;
-
-  color: #d73955;
-  font-size: 13px;
 }
 
 /* 지도 카드 */
