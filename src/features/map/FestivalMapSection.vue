@@ -21,7 +21,12 @@ import type {
 import type {
   Festival,
   FestivalDataset,
+  FestivalMapFocusRequest,
 } from './types'
+
+const props = defineProps<{
+  focusRequest?: FestivalMapFocusRequest | null
+}>()
 
 // 불러온 JSON의 전체 구조를 FestivalDataset으로 지정
 const festivalData =
@@ -85,6 +90,40 @@ const festivals: Festival[] =
       ),
     }
   })
+
+const focusedFestival = computed<Festival | null>(() => {
+  const request = props.focusRequest
+  if (!request) return null
+
+  return (
+    festivals.find((festival) => festival.contentid === request.contentId) ?? {
+      contentid: request.contentId,
+      title: request.title,
+      mapx: String(request.longitude),
+      mapy: String(request.latitude),
+    }
+  )
+})
+
+let chatFocusedContentId: string | null = null
+
+watch(
+  () => props.focusRequest,
+  (request) => {
+    if (request) {
+      chatFocusedContentId = request.contentId
+      selectedFestival.value = focusedFestival.value
+      return
+    }
+
+    if (selectedFestival.value?.contentid === chatFocusedContentId) {
+      selectedFestival.value = null
+    }
+
+    chatFocusedContentId = null
+  },
+  { immediate: true },
+)
 
 /*
  * 중복을 제거한 자치구 목록 생성
@@ -345,6 +384,10 @@ watch(
       return
     }
 
+    if (selected.contentid === chatFocusedContentId) {
+      return
+    }
+
     const isStillVisible =
       currentFestivals.some(
         (festival) => {
@@ -485,7 +528,7 @@ const resetFilters = () => {
     />
 
     <!-- 기존 지도 카드 -->
-    <div class="map-feature-card">
+    <div id="festival-map-card" class="map-feature-card">
       <div class="map-feature-card-header">
         <div>
           <span class="map-feature-live-dot"></span>
@@ -500,6 +543,8 @@ const resetFilters = () => {
       <div class="map-feature-area">
         <FestivalMap
           :festivals="filteredFestivals"
+          :focus-festival="focusedFestival"
+          :focus-request-id="props.focusRequest?.requestId ?? 0"
           @select-festival="handleSelectFestival"
         />
 

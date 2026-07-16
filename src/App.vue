@@ -1,11 +1,59 @@
 <script setup lang="ts">
+import { nextTick, ref } from 'vue'
 import { FestivalChatWidget } from './chatbot'
+import type { FestivalSource } from './chatbot/types'
 import CommunityBoard from './components/CommunityBoard.vue'
 import FestivalMapSection from './features/map/FestivalMapSection.vue'
+import type { FestivalMapFocusRequest } from './features/map/types'
 
 const previewChatOpen =
   typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('chat') === 'open'
+
+const mapFocusRequest = ref<FestivalMapFocusRequest | null>(null)
+let mapFocusSequence = 0
+
+function isValidSeoulCoordinate(source: FestivalSource): source is FestivalSource & {
+  latitude: number
+  longitude: number
+} {
+  return (
+    source.latitude !== null &&
+    source.longitude !== null &&
+    Number.isFinite(source.latitude) &&
+    Number.isFinite(source.longitude) &&
+    source.latitude >= 37.4 &&
+    source.latitude <= 37.75 &&
+    source.longitude >= 126.7 &&
+    source.longitude <= 127.3
+  )
+}
+
+async function handleShowOnMap(source: FestivalSource): Promise<void> {
+  if (!isValidSeoulCoordinate(source)) return
+
+  mapFocusRequest.value = {
+    requestId: ++mapFocusSequence,
+    contentId: source.contentId,
+    title: source.title,
+    latitude: source.latitude,
+    longitude: source.longitude,
+  }
+
+  await nextTick()
+
+  const mapCard = document.getElementById('festival-map-card')
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  mapCard?.scrollIntoView({
+    behavior: reduceMotion ? 'auto' : 'smooth',
+    block: 'center',
+  })
+}
+
+function resetMapFocus(): void {
+  mapFocusRequest.value = null
+}
 </script>
 
 <template>
@@ -34,7 +82,7 @@ const previewChatOpen =
       </div>
       <div class="hero-card" aria-hidden="true">
         <div class="mock-image">
-          <img src="/seoul.jpg" alt="서울 이미지" />
+          <span>SEOUL</span>
         </div>
         <div class="mock-lines">
           <strong>서울 축제·공연·행사</strong>
@@ -45,7 +93,7 @@ const previewChatOpen =
       </div>
     </section>
 
-    <FestivalMapSection />
+    <FestivalMapSection :focus-request="mapFocusRequest" />
 
     <CommunityBoard />
 
@@ -69,6 +117,8 @@ const previewChatOpen =
     subtitle="공공데이터 기반 상담 챗봇"
     primary-color="#3165ff"
     :initially-open="previewChatOpen"
+    @show-on-map="handleShowOnMap"
+    @reset-map-focus="resetMapFocus"
   />
 </template>
 
