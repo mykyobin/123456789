@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import festivalJson from '../../netlify/functions/data/seoul-festivals.json'
 import {
   createCommunityPost,
   createLocalCommunityPost,
@@ -22,6 +23,7 @@ const draftCategory = ref<'general' | 'party' | 'review'>('general')
 const draftFestivalName = ref('')
 const draftPartyDate = ref('')
 const draftRating = ref<number | null>(null)
+const showDraftFestivalSuggestions = ref(false)
 const editingPostId = ref<string | null>(null)
 const editTitle = ref('')
 const editContent = ref('')
@@ -32,6 +34,52 @@ const editPartyDate = ref('')
 const editRating = ref<number | null>(null)
 const deletingPostId = ref<string | null>(null)
 const deletePassword = ref('')
+const showEditFestivalSuggestions = ref(false)
+
+const festivalNames = (
+  (festivalJson as { items: Array<{ title?: string }> }).items ?? []
+)
+  .map((item) => item.title ?? '')
+  .filter((title) => title)
+
+const draftFestivalSuggestions = computed(() => {
+  if (
+    draftCategory.value !== 'party' &&
+    draftCategory.value !== 'review'
+  ) {
+    return []
+  }
+
+  const query = draftFestivalName.value.trim().toLowerCase()
+  if (!query) return []
+
+  return festivalNames
+    .filter((title) => title.toLowerCase().includes(query))
+    .slice(0, 5)
+})
+
+const editFestivalSuggestions = computed(() => {
+  if (editCategory.value !== 'party' && editCategory.value !== 'review') {
+    return []
+  }
+
+  const query = editFestivalName.value.trim().toLowerCase()
+  if (!query) return []
+
+  return festivalNames
+    .filter((title) => title.toLowerCase().includes(query))
+    .slice(0, 5)
+})
+
+function selectDraftFestivalName(value: string): void {
+  draftFestivalName.value = value
+  showDraftFestivalSuggestions.value = false
+}
+
+function selectEditFestivalName(value: string): void {
+  editFestivalName.value = value
+  showEditFestivalSuggestions.value = false
+}
 
 const canCreate = computed(
   () => {
@@ -66,8 +114,8 @@ function resetForm(): void {
   draftFestivalName.value = ''
   draftPartyDate.value = ''
   draftRating.value = null
-  errorMessage.value = ''
-  successMessage.value = ''
+  showDraftFestivalSuggestions.value = false
+  showEditFestivalSuggestions.value = false
 }
 
 function openEdit(post: CommunityPost): void {
@@ -255,9 +303,30 @@ onMounted(() => {
             <option value="review">축제 리뷰</option>
           </select>
         </label>
-        <label v-if="draftCategory === 'party' || draftCategory === 'review'">
+        <label v-if="draftCategory === 'party' || draftCategory === 'review'" class="autocomplete-field">
           축제 이름
-          <input v-model="draftFestivalName" type="text" placeholder="축제 이름을 입력하세요" />
+          <input
+            v-model="draftFestivalName"
+            @focus="showDraftFestivalSuggestions.value = true"
+            @input="showDraftFestivalSuggestions.value = true"
+            @blur="setTimeout(() => (showDraftFestivalSuggestions.value = false), 150)"
+            type="text"
+            placeholder="축제 이름을 입력하세요"
+            autocomplete="off"
+          />
+          <ul
+            v-if="draftFestivalSuggestions.length > 0"
+            v-show="showDraftFestivalSuggestions"
+            class="suggestion-list"
+          >
+            <li
+              v-for="suggestion in draftFestivalSuggestions"
+              :key="suggestion"
+              @mousedown.prevent="selectDraftFestivalName(suggestion)"
+            >
+              {{ suggestion }}
+            </li>
+          </ul>
         </label>
         <label v-if="draftCategory === 'party'">
           동행 날짜
@@ -330,9 +399,28 @@ onMounted(() => {
                   <option value="review">축제 리뷰</option>
                 </select>
               </label>
-              <label v-if="editCategory === 'party' || editCategory === 'review'">
+              <label v-if="editCategory === 'party' || editCategory === 'review'" class="autocomplete-field">
                 축제 이름
-                <input v-model="editFestivalName" type="text" />
+                <input
+                  v-model="editFestivalName"
+                  @focus="showEditFestivalSuggestions.value = true"
+                  @input="showEditFestivalSuggestions.value = true"
+                  @blur="setTimeout(() => (showEditFestivalSuggestions.value = false), 150)"
+                  type="text"
+                />
+                <ul
+                  v-if="editFestivalSuggestions.length > 0"
+                  v-show="showEditFestivalSuggestions"
+                  class="suggestion-list"
+                >
+                  <li
+                    v-for="suggestion in editFestivalSuggestions"
+                    :key="suggestion"
+                    @mousedown.prevent="selectEditFestivalName(suggestion)"
+                  >
+                    {{ suggestion }}
+                  </li>
+                </ul>
               </label>
               <label v-if="editCategory === 'party'">
                 동행 날짜
@@ -427,6 +515,37 @@ onMounted(() => {
   background: #f9fbff;
   font-size: 14px;
   color: #172033;
+}
+
+.autocomplete-field {
+  position: relative;
+}
+
+.suggestion-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 6px 0 0;
+  padding: 8px 0;
+  border: 1px solid #d8dee8;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(31, 51, 91, 0.08);
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.suggestion-list li {
+  padding: 10px 14px;
+  cursor: pointer;
+  color: #172033;
+  font-size: 14px;
+}
+
+.suggestion-list li:hover {
+  background: #f0f4ff;
 }
 
 .community-form textarea,
