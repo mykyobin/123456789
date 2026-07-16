@@ -112,10 +112,10 @@ function canUseLocalFallback(error: unknown): boolean {
     return true
   }
 
-  return error instanceof TypeError
+  return error instanceof TypeError || error instanceof DOMException
 }
 
-async function createLocalCommunityPost(body: CommunityCreateRequest): Promise<CommunityPost> {
+export async function createLocalCommunityPost(body: CommunityCreateRequest): Promise<CommunityPost> {
   const now = new Date().toISOString()
   const passwordHash = await hashPassword(body.password)
   const newPost: StoredCommunityPost = {
@@ -198,6 +198,10 @@ export async function fetchCommunityPosts(endpoint: string): Promise<CommunityPo
     }
     throw error
   }
+}
+
+export function loadLocalCommunityPosts(): CommunityPost[] {
+  return loadLocalStoragePosts().map(({ passwordHash, ...post }) => post)
 }
 
 export async function createCommunityPost(

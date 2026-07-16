@@ -2,8 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   createCommunityPost,
+  createLocalCommunityPost,
   deleteCommunityPost,
   fetchCommunityPosts,
+  loadLocalCommunityPosts,
   updateCommunityPost,
 } from '../community/api'
 import type { CommunityPost } from '../../shared/community-contract'
@@ -110,6 +112,7 @@ async function loadPosts(): Promise<void> {
   try {
     posts.value = await fetchCommunityPosts(endpoint)
   } catch (error) {
+    posts.value = loadLocalCommunityPosts()
     errorMessage.value =
       error instanceof Error
         ? error.message
@@ -138,10 +141,32 @@ async function submitPost(): Promise<void> {
     resetForm()
     successMessage.value = '게시글이 등록되었습니다.'
   } catch (error) {
-    errorMessage.value =
-      error instanceof Error
-        ? error.message
-        : '게시글 등록 중 오류가 발생했습니다.'
+    if (error instanceof Error) {
+      errorMessage.value = error.message
+    } else {
+      errorMessage.value = '게시글 등록 중 오류가 발생했습니다.'
+    }
+
+    try {
+      const newPost = await createLocalCommunityPost({
+        title: draftTitle.value.trim(),
+        content: draftContent.value.trim(),
+        password: draftPassword.value,
+        category: draftCategory.value,
+        festivalName: draftFestivalName.value.trim() || undefined,
+        partyDate: draftPartyDate.value || undefined,
+        rating: draftRating.value ?? undefined,
+      })
+      posts.value = [newPost, ...posts.value]
+      resetForm()
+      successMessage.value = '서버 연결 없이 로컬에 게시글이 저장되었습니다.'
+      errorMessage.value = ''
+    } catch (fallbackError) {
+      errorMessage.value =
+        fallbackError instanceof Error
+          ? fallbackError.message
+          : '게시글 등록 중 오류가 발생했습니다.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -389,8 +414,10 @@ onMounted(() => {
 
 .community-form input,
 .community-form textarea,
+.community-form select,
 .edit-panel input,
 .edit-panel textarea,
+.edit-panel select,
 .delete-panel input {
   width: 100%;
   min-height: 44px;
