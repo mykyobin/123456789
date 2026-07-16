@@ -322,15 +322,18 @@ onMounted(() => {
             @focus="showDraftFestivalSuggestions = true"
             @input="showDraftFestivalSuggestions = true"
             @blur="delayHideDraftFestivalSuggestions"
-            type="text"
+            type="search"
             placeholder="축제 이름을 입력하세요"
             autocomplete="off"
           />
           <ul
-            v-if="draftFestivalSuggestions.length > 0"
+            v-if="showDraftFestivalSuggestions"
             v-show="showDraftFestivalSuggestions"
             class="suggestion-list"
           >
+            <li v-if="draftFestivalName && draftFestivalSuggestions.length === 0" class="no-results">
+              일치하는 축제가 없습니다.
+            </li>
             <li
               v-for="suggestion in draftFestivalSuggestions"
               :key="suggestion"
@@ -418,13 +421,16 @@ onMounted(() => {
                   @focus="showEditFestivalSuggestions = true"
                   @input="showEditFestivalSuggestions = true"
                   @blur="delayHideEditFestivalSuggestions"
-                  type="text"
+                  type="search"
                 />
                 <ul
-                  v-if="editFestivalSuggestions.length > 0"
+                  v-if="showEditFestivalSuggestions"
                   v-show="showEditFestivalSuggestions"
                   class="suggestion-list"
                 >
+                  <li v-if="editFestivalName && editFestivalSuggestions.length === 0" class="no-results">
+                    일치하는 축제가 없습니다.
+                  </li>
                   <li
                     v-for="suggestion in editFestivalSuggestions"
                     :key="suggestion"
@@ -533,6 +539,27 @@ onMounted(() => {
   position: relative;
 }
 
+.autocomplete-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid #d8dee8;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #172033;
+  font-size: 14px;
+}
+
+.autocomplete-field input:focus {
+  outline: none;
+  border-color: #3165ff;
+  box-shadow: 0 0 0 4px rgba(49, 101, 255, 0.12);
+}
+
+.autocomplete-field input::placeholder {
+  color: #9b9ebf;
+}
+
 .suggestion-list {
   position: absolute;
   left: 0;
@@ -554,6 +581,11 @@ onMounted(() => {
   cursor: pointer;
   color: #172033;
   font-size: 14px;
+}
+
+.suggestion-list li.no-results {
+  cursor: default;
+  color: #7c879a;
 }
 
 .suggestion-list li:hover {
