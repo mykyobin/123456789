@@ -1,96 +1,95 @@
-# 서울 축제 ChatLLM MVP
+# 서울 축제 ChatLLM 웹사이트
 
-Vue 3 웹사이트 우측 하단에 붙일 수 있는 **상담형 플로팅 챗봇 MVP**입니다.
+이 프로젝트는 서울 축제·공연·행사 정보를 보여주는 Vue 3 웹사이트입니다. 메인 페이지는 데모 형식으로 구성되어 있으며, 축제 지도와 커뮤니티 게시판, 그리고 자연어 검색 챗봇을 한 화면에서 제공합니다.
 
-- 화면 오른쪽 아래의 챗봇 아이콘을 누르면 대화창이 열립니다.
-- Netlify Function이 서울 축제·공연·행사 JSON 201건을 먼저 검색합니다.
-- 관련 결과를 최대 5건으로 줄인 뒤에만 OpenAI Responses API를 호출합니다.
-- API 키가 없거나 LLM 호출이 실패해도 검증된 JSON 검색 답변으로 동작합니다.
-- Vue 프론트엔드에는 OpenAI API 키가 포함되지 않습니다.
+![챗봇 열린 화면](docs/screenshots/chatbot-open.png)
 
-![우측 하단 챗봇이 열린 화면](docs/screenshots/chatbot-open.png)
+## 웹사이트 주요 기능
 
-## 1. 현재 MVP 범위
+- 데모 랜딩 페이지: 서울 지역 정보 서비스를 소개하는 히어로 섹션과 페이지 구성
+- 축제 지도 섹션: `FestivalMapSection`을 통해 서울 축제를 시각적으로 탐색
+- 커뮤니티 게시판: `CommunityBoard`를 통해 사용자 게시글과 지역 소식을 확인
+- 채팅형 검색 위젯: 화면 우측 하단 플로팅 아이콘을 눌러 대화형 챗봇 사용
+- 모바일 대응: 작은 화면에서는 챗봇이 전체 화면으로 확장되어 편리하게 사용
+- 빠른 질문 버튼: 자주 쓰는 질문을 바로 선택해 조회
+- 대화형 검색: 질문과 대화 내역을 바탕으로 축제 정보를 응답
 
-### 구현됨
+## 사용자가 보는 화면
 
-- 우측 하단 원형 챗봇 아이콘
-- 아이콘 클릭 시 우측 하단 상담형 대화창 표시
-- 모바일에서 전체 화면 대화창 표시
-- 질문·답변 말풍선, 시간, 로딩 애니메이션
-- 빠른 질문 버튼
-- 서울 축제명·자치구·날짜·무료 여부 검색
-- 행사 기간·장소·시간·요금·좌표 근거 카드
-- Netlify Function `/api/chat`
-- 질문 최대 300자, 검색 결과 최대 5건
-- IP 기준 분당 10회 Rate Limit 설정
-- OpenAI API 장애 시 검색 기반 안전 응답
-- API 키가 없는 상태에서도 로컬 UI·검색 테스트
-- TypeScript 검사, 단위 테스트, 프로덕션 빌드
+1. 웹사이트에 접속하면 서울 테마의 히어로 섹션과 함께 축제 정보 홍보 요소가 보입니다.
+2. 아래로 스크롤하면 축제 지도 섹션과 커뮤니티 게시판이 이어집니다.
+3. 우측 하단 챗봇 아이콘을 클릭하면 상담형 대화창이 열립니다.
+4. 사용자는 자연어로 질문을 입력할 수 있습니다.
+   - 예: “오늘 서울에서 무료 축제 알려줘”
+   - 예: “종로구에서 이번 주말 공연 있어?”
+   - 예: “내일 열리는 축제 일정이 뭐야?”
+5. 챗봇 답변과 함께 관련 축제 정보가 나타납니다.
 
-### MVP에서 제외됨
+## 챗봇의 동작 방식
 
-- 대화 영구 저장
-- 회원가입·로그인
-- 벡터 데이터베이스
-- 스트리밍 답변
-- 지도·경로·날씨
-- 실시간 TourAPI 갱신
-- 여러 데이터 유형을 한 번에 검색하는 통합 RAG
+- 브라우저에서 `/api/chat`로 POST 요청을 보냅니다.
+- 서버는 질문을 검증하고 로컬 축제 데이터를 검색합니다.
+- 검색 결과 중 최대 5건을 선택합니다.
+- OpenAI API 키가 설정되어 있으면 선택된 결과를 OpenAI Responses API에 전달해 자연어 답변을 생성합니다.
+- 키가 없거나 OpenAI 호출이 실패하면, 로컬 데이터 기반의 안전한 폴백 응답을 반환합니다.
 
-## 2. 실행 구조
+## 데이터 출처
 
-```text
-Vue 3 FestivalChatWidget
-        │ POST /api/chat
-        ▼
-Netlify Function
-        │
-        ├─ 서울 축제 JSON 검색
-        ├─ 관련 결과 최대 5건 선택
-        ├─ API 키 없음/오류 → 검색 답변
-        └─ API 키 있음 → OpenAI Responses API
-```
+웹사이트는 로컬 JSON 형태의 서울 축제·공연·행사 데이터를 사용합니다.
 
-JSON 전체를 매 질문마다 LLM에 보내지 않습니다. 검색 단계와 답변 생성 단계를 분리해 비용, 속도, 정확성을 관리합니다.
+- `netlify/functions/data/seoul-festivals.json`
+- `netlify/functions/data/서울_관광지.json`
+- `netlify/functions/data/서울_숙박.json`
+- `netlify/functions/data/서울_쇼핑.json`
+- `netlify/functions/data/서울_문화시설.json`
+- `netlify/functions/data/서울_레포츠.json`
+- `netlify/functions/data/서울_여행코스.json`
 
-## 3. 가장 빠른 로컬 실행
+이 데이터는 공공 관광 데이터를 기반으로 하며, 검색과 폴백 응답 품질을 위해 사용됩니다.
 
-### 준비물
+## 웹사이트 구조
 
-- Node.js 22 권장(최소 20.19)
-- VSCode 또는 다른 코드 편집기
+- `src/App.vue` - 데모 페이지 전체 레이아웃과 챗봇 위젯 배치
+- `src/chatbot/` - 챗봇 UI 컴포넌트, API 클라이언트, 타입 정의
+- `shared/chat-contract.ts` - 브라우저와 Netlify Function 간의 요청/응답 타입 공유
+- `netlify/functions/chat.mts` - `/api/chat` 엔드포인트 구현
+- `netlify/functions/_shared/` - 검색 로직, 의도 감지, 폴백 답변 생성
+- `netlify/functions/data/` - 서울 축제 및 커뮤니티 샘플 JSON 데이터
 
-### 실행
+## 설치 및 실행 방법
+
+### 요구 사항
+
+- Node.js 22 이상
+- npm
+
+### 설치
 
 ```bash
 npm install
+```
+
+### 개발 서버 실행
+
+```bash
 npm run dev
 ```
 
-브라우저에서 아래 주소를 엽니다.
+브라우저에서 다음 주소를 엽니다.
 
 ```text
 http://localhost:5173
 ```
 
-API 키가 없어도 검색 전용 모드로 작동합니다. 우측 하단 챗봇 아이콘을 누르고 다음 질문을 시험합니다.
-
-```text
-문학주간 2026 일정 알려줘
-오늘 진행 중인 축제 알려줘
-9월 종로구 무료 축제 알려줘
-```
-
-열린 챗봇 화면을 바로 확인하려면 다음 주소를 사용할 수 있습니다.
+챗봇을 바로 열려면:
 
 ```text
 http://localhost:5173/?chat=open
 ```
 
-## 4. OpenAI API 연결
+## 환경 변수 설정
 
-루트의 `.env.example`을 복사해 `.env`를 만듭니다.
+루트 폴더에서 `.env.example`을 복사하여 `.env` 파일을 생성합니다.
 
 Windows PowerShell:
 
@@ -104,99 +103,89 @@ macOS/Linux:
 cp .env.example .env
 ```
 
-`.env`에 실제 키를 입력합니다.
+`.env` 예시:
 
 ```env
-OPENAI_API_KEY=발급받은_실제_키
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-5-mini
 CHATBOT_FORCE_FALLBACK=false
 ```
 
-중요:
+> OpenAI API 키는 Netlify Function에서만 사용하므로 `VITE_` 접두사를 붙이지 마세요.
 
-- `VITE_OPENAI_API_KEY`를 만들지 않습니다.
-- 실제 키를 GitHub, README, 코드, 채팅에 올리지 않습니다.
-- `.env`는 `.gitignore`에 포함되어 있습니다.
-- 모델 ID는 계정에서 사용 가능한 다른 모델로 바꿀 수 있습니다.
-
-환경변수를 바꾼 뒤 개발 서버를 종료하고 다시 실행합니다.
+변경 후에는 개발 서버를 재시작합니다.
 
 ```bash
 npm run dev
 ```
 
-## 5. 자동 검증
+## 테스트 및 검증
 
-```bash
-npm test
-npm run typecheck
-npm run build
-npm run bundle:functions
-```
+- `npm test` - Vitest 단위 테스트 실행
+- `npm run typecheck` - TypeScript 검증
+- `npm run build` - 프로덕션 빌드
+- `npm run bundle:functions` - Netlify Function 번들 생성
+- `npm run check` - 테스트, 빌드, 함수 번들을 순차 실행
 
-또는 한 번에 실행합니다.
+## Netlify 배포
 
-```bash
-npm run check
-```
-
-현재 `npm run verify` 기준 11개 테스트, Vue 빌드, Function 번들을 통과했고 `npm audit` 취약점은 0건입니다. 자세한 결과는 [검증 보고서](docs/VERIFICATION_REPORT.md)를 확인합니다.
-
-테스트 대상:
-
-- 정확한 축제명 검색
-- 오늘 진행 중인 행사 검색
-- 자치구 + 무료 조건
-- 특정 월 일정 겹침
-- 없는 검색어 처리
-- 유아만 무료인 유료 행사의 오분류 방지
-- Function의 메서드·입력 검증
-- API 키 없는 검색 답변
-
-## 6. Netlify 배포
-
-### Netlify에 등록할 환경변수
-
-```text
-OPENAI_API_KEY = 실제 OpenAI API 키
-OPENAI_MODEL = gpt-5.6-luna
-CHATBOT_FORCE_FALLBACK = false
-```
-
-### 빌드 설정
-
-`netlify.toml`에 이미 포함되어 있습니다.
+`netlify.toml`에는 Netlify 배포를 위한 설정이 이미 포함되어 있습니다.
 
 ```toml
 [build]
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
 ```
 
-Netlify에서는 `netlify/functions/chat.mts`가 `/api/chat` 경로로 배포됩니다.
+배포 시 설정할 환경 변수:
 
-## 7. 기존 Vue 3 사이트에 합치기
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `CHATBOT_FORCE_FALLBACK`
 
-가장 간단한 동일 저장소 통합 방식입니다.
+## 통합 및 확장
 
-### 복사할 파일
+챗봇 위젯은 Vue Router나 글로벌 상태에 의존하지 않도록 설계되었습니다. 다른 Vue 3 앱에 쉽게 임베드할 수 있으며, `Teleport`를 사용해 `body` 아래에 렌더링합니다.
 
-```text
-src/chatbot/
-shared/chat-contract.ts
-netlify/functions/chat.mts
-netlify/functions/_shared/
-netlify/functions/data/seoul-festivals.json
-```
+기존 사이트에 통합할 때 참조할 파일:
 
-### 설치할 패키지
+- `src/chatbot/`
+- `shared/chat-contract.ts`
+- `netlify/functions/chat.mts`
+- `netlify/functions/_shared/`
+- `netlify/functions/data/seoul-festivals.json`
+
+필요한 추가 패키지:
 
 ```bash
 npm install openai @netlify/functions
 ```
 
-### 공통 레이아웃 또는 App.vue에 추가
+## 주의 사항
+
+- OpenAI API 키를 브라우저로 노출하지 마세요.
+- `.env` 파일은 버전 관리에서 제외되어야 합니다.
+- 질문은 최대 300자까지 허용됩니다.
+- IP당 분당 10회 요청 제한이 적용됩니다.
+
+## 참고 문서
+
+- `docs/ARCHITECTURE.md` - 아키텍처 설계
+- `docs/SETUP_FOR_BEGINNERS.md` - 초보자 실행 가이드
+- `docs/VERIFICATION_REPORT.md` - 검증 보고서
+- `docs/INTEGRATION.md` - 통합 가이드
+
+## 데이터 라이선스
+
+이 프로젝트는 한국관광공사의 공공 데이터를 활용하며, 관련 데이터 라이선스 정책을 따릅니다.
+
 
 ```vue
 <script setup lang="ts">
