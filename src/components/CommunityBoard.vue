@@ -566,7 +566,7 @@ onMounted(() => {
   position: absolute;
   left: 0;
   right: 0;
-  margin: 6px 0 0;
+  top: calc(100% + 6px);
   padding: 8px 0;
   border: 1px solid #d8dee8;
   border-radius: 14px;
@@ -575,7 +575,7 @@ onMounted(() => {
   list-style: none;
   max-height: 220px;
   overflow-y: auto;
-  z-index: 10;
+  z-index: 20;
 }
 
 .suggestion-list li {
