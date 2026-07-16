@@ -16,29 +16,54 @@ const posts = ref<CommunityPost[]>([])
 const draftTitle = ref('')
 const draftContent = ref('')
 const draftPassword = ref('')
+const draftCategory = ref<'general' | 'party' | 'review'>('general')
+const draftFestivalName = ref('')
+const draftPartyDate = ref('')
+const draftRating = ref<number | null>(null)
 const editingPostId = ref<string | null>(null)
 const editTitle = ref('')
 const editContent = ref('')
 const editPassword = ref('')
+const editCategory = ref<'general' | 'party' | 'review'>('general')
+const editFestivalName = ref('')
+const editPartyDate = ref('')
+const editRating = ref<number | null>(null)
 const deletingPostId = ref<string | null>(null)
 const deletePassword = ref('')
 
 const canCreate = computed(
-  () => draftTitle.value.trim().length > 0 && draftContent.value.trim().length > 0 && draftPassword.value.trim().length > 0,
+  () => {
+    const hasBaseFields =
+      draftTitle.value.trim().length > 0 && draftContent.value.trim().length > 0 && draftPassword.value.trim().length > 0
+    const requiresFestivalName =
+      draftCategory.value === 'party' || draftCategory.value === 'review'
+    const hasFestivalName = !requiresFestivalName || draftFestivalName.value.trim().length > 0
+    const requiresRating = draftCategory.value === 'review'
+    const hasRating = !requiresRating || (draftRating.value !== null && draftRating.value >= 1 && draftRating.value <= 5)
+    return hasBaseFields && hasFestivalName && hasRating
+  },
 )
 
 const canSaveEdit = computed(
-  () =>
-    editingPostId.value !== null &&
-    editTitle.value.trim().length > 0 &&
-    editContent.value.trim().length > 0 &&
-    editPassword.value.trim().length > 0,
+  () => {
+    if (editingPostId.value === null) return false
+    const baseFields = editTitle.value.trim().length > 0 && editContent.value.trim().length > 0 && editPassword.value.trim().length > 0
+    const requiresFestivalName = editCategory.value === 'party' || editCategory.value === 'review'
+    const hasFestivalName = !requiresFestivalName || editFestivalName.value.trim().length > 0
+    const requiresRating = editCategory.value === 'review'
+    const hasRating = !requiresRating || (editRating.value !== null && editRating.value >= 1 && editRating.value <= 5)
+    return baseFields && hasFestivalName && hasRating
+  },
 )
 
 function resetForm(): void {
   draftTitle.value = ''
   draftContent.value = ''
   draftPassword.value = ''
+  draftCategory.value = 'general'
+  draftFestivalName.value = ''
+  draftPartyDate.value = ''
+  draftRating.value = null
   errorMessage.value = ''
   successMessage.value = ''
 }
@@ -48,6 +73,10 @@ function openEdit(post: CommunityPost): void {
   editTitle.value = post.title
   editContent.value = post.content
   editPassword.value = ''
+  editCategory.value = post.category ?? 'general'
+  editFestivalName.value = post.festivalName ?? ''
+  editPartyDate.value = post.partyDate ?? ''
+  editRating.value = post.rating ?? null
   errorMessage.value = ''
   successMessage.value = ''
 }
@@ -57,6 +86,10 @@ function closeEdit(): void {
   editTitle.value = ''
   editContent.value = ''
   editPassword.value = ''
+  editCategory.value = 'general'
+  editFestivalName.value = ''
+  editPartyDate.value = ''
+  editRating.value = null
 }
 
 function openDelete(post: CommunityPost): void {
@@ -96,6 +129,10 @@ async function submitPost(): Promise<void> {
       title: draftTitle.value.trim(),
       content: draftContent.value.trim(),
       password: draftPassword.value,
+      category: draftCategory.value,
+      festivalName: draftFestivalName.value.trim() || undefined,
+      partyDate: draftPartyDate.value || undefined,
+      rating: draftRating.value ?? undefined,
     })
     posts.value = [newPost, ...posts.value]
     resetForm()
@@ -120,6 +157,10 @@ async function saveEdit(): Promise<void> {
       title: editTitle.value.trim(),
       content: editContent.value.trim(),
       password: editPassword.value,
+      category: editCategory.value,
+      festivalName: editFestivalName.value.trim() || undefined,
+      partyDate: editPartyDate.value || undefined,
+      rating: editRating.value ?? undefined,
     })
 
     posts.value = posts.value.map((post) =>
@@ -182,6 +223,26 @@ onMounted(() => {
           <input v-model="draftTitle" type="text" placeholder="게시글 제목을 입력하세요" />
         </label>
         <label>
+          카테고리
+          <select v-model="draftCategory">
+            <option value="general">일반</option>
+            <option value="party">파티 모집</option>
+            <option value="review">축제 리뷰</option>
+          </select>
+        </label>
+        <label v-if="draftCategory === 'party' || draftCategory === 'review'">
+          축제 이름
+          <input v-model="draftFestivalName" type="text" placeholder="축제 이름을 입력하세요" />
+        </label>
+        <label v-if="draftCategory === 'party'">
+          동행 날짜
+          <input v-model="draftPartyDate" type="date" />
+        </label>
+        <label v-if="draftCategory === 'review'">
+          평점
+          <input v-model.number="draftRating" type="number" min="1" max="5" placeholder="1~5" />
+        </label>
+        <label>
           내용
           <textarea v-model="draftContent" rows="5" placeholder="내용을 입력하세요"></textarea>
         </label>
@@ -222,10 +283,39 @@ onMounted(() => {
               <button class="secondary" @click="openDelete(post)">삭제</button>
             </div>
 
+            <div class="post-meta-extra">
+              <span v-if="post.category !== 'general'" class="post-category">
+                [{{ post.category === 'party' ? '파티 모집' : '리뷰' }}]
+              </span>
+              <span v-if="post.festivalName">축제: {{ post.festivalName }}</span>
+              <span v-if="post.partyDate">동행 날짜: {{ post.partyDate }}</span>
+              <span v-if="post.rating">평점: {{ post.rating }}/5</span>
+            </div>
+
             <div v-if="editingPostId === post.id" class="edit-panel">
               <label>
                 제목
                 <input v-model="editTitle" type="text" />
+              </label>
+              <label>
+                카테고리
+                <select v-model="editCategory">
+                  <option value="general">일반</option>
+                  <option value="party">파티 모집</option>
+                  <option value="review">축제 리뷰</option>
+                </select>
+              </label>
+              <label v-if="editCategory === 'party' || editCategory === 'review'">
+                축제 이름
+                <input v-model="editFestivalName" type="text" />
+              </label>
+              <label v-if="editCategory === 'party'">
+                동행 날짜
+                <input v-model="editPartyDate" type="date" />
+              </label>
+              <label v-if="editCategory === 'review'">
+                평점
+                <input v-model.number="editRating" type="number" min="1" max="5" />
               </label>
               <label>
                 내용

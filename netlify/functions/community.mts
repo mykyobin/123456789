@@ -45,6 +45,14 @@ async function writePosts(posts: StoredCommunityPost[]): Promise<void> {
   await fs.writeFile(DATA_PATH, JSON.stringify(posts, null, 2), 'utf-8')
 }
 
+const allowedCategories = ['general', 'party', 'review'] as const
+
+type CommunityPostCategory = (typeof allowedCategories)[number]
+
+function isValidCategory(value: unknown): value is CommunityPostCategory {
+  return typeof value === 'string' && allowedCategories.includes(value as CommunityPostCategory)
+}
+
 function toHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
     .map((byte) => byte.toString(16).padStart(2, '0'))
@@ -72,7 +80,11 @@ function validateCreateBody(value: unknown): value is CommunityCreateRequest {
     value !== null &&
     typeof (value as any).title === 'string' &&
     typeof (value as any).content === 'string' &&
-    typeof (value as any).password === 'string'
+    typeof (value as any).password === 'string' &&
+    ((value as any).category === undefined || isValidCategory((value as any).category)) &&
+    ((value as any).festivalName === undefined || typeof (value as any).festivalName === 'string') &&
+    ((value as any).partyDate === undefined || typeof (value as any).partyDate === 'string') &&
+    ((value as any).rating === undefined || typeof (value as any).rating === 'number')
   )
 }
 
@@ -82,7 +94,11 @@ function validateUpdateBody(value: unknown): value is CommunityUpdateRequest {
     value !== null &&
     typeof (value as any).title === 'string' &&
     typeof (value as any).content === 'string' &&
-    typeof (value as any).password === 'string'
+    typeof (value as any).password === 'string' &&
+    ((value as any).category === undefined || isValidCategory((value as any).category)) &&
+    ((value as any).festivalName === undefined || typeof (value as any).festivalName === 'string') &&
+    ((value as any).partyDate === undefined || typeof (value as any).partyDate === 'string') &&
+    ((value as any).rating === undefined || typeof (value as any).rating === 'number')
   )
 }
 
@@ -138,6 +154,10 @@ export default async function handler(request: Request): Promise<Response> {
     const trimmedTitle = body.title.trim()
     const trimmedContent = body.content.trim()
     const password = body.password
+    const category = isValidCategory(body.category) ? body.category : 'general'
+    const trimmedFestivalName = typeof body.festivalName === 'string' ? body.festivalName.trim() : ''
+    const partyDate = typeof body.partyDate === 'string' ? body.partyDate.trim() : undefined
+    const rating = typeof body.rating === 'number' ? body.rating : undefined
 
     if (!trimmedTitle) {
       return errorResponse('제목을 입력해 주세요.', 400, 'EMPTY_TITLE')
@@ -151,12 +171,24 @@ export default async function handler(request: Request): Promise<Response> {
       return errorResponse('비밀번호를 입력해 주세요.', 400, 'EMPTY_PASSWORD')
     }
 
+    if (category !== 'general' && !trimmedFestivalName) {
+      return errorResponse('축제 이름을 입력해 주세요.', 400, 'EMPTY_FESTIVAL_NAME')
+    }
+
+    if (category === 'review' && (rating === undefined || rating < 1 || rating > 5)) {
+      return errorResponse('1에서 5 사이의 평점을 입력해 주세요.', 400, 'INVALID_RATING')
+    }
+
     const posts = await readPosts()
     const now = new Date().toISOString()
     const newPost: StoredCommunityPost = {
       id: createPostId(),
       title: trimmedTitle,
       content: trimmedContent,
+      category,
+      festivalName: trimmedFestivalName || undefined,
+      partyDate: category === 'party' ? partyDate : undefined,
+      rating: category === 'review' ? rating : undefined,
       createdAt: now,
       updatedAt: now,
       passwordHash: await hashPassword(password),
@@ -204,6 +236,11 @@ export default async function handler(request: Request): Promise<Response> {
 
     const trimmedTitle = body.title.trim()
     const trimmedContent = body.content.trim()
+    const category = isValidCategory(body.category) ? body.category : existingPost.category
+    const trimmedFestivalName = typeof body.festivalName === 'string' ? body.festivalName.trim() : existingPost.festivalName
+    const partyDate = typeof body.partyDate === 'string' ? body.partyDate.trim() : existingPost.partyDate
+    const rating = typeof body.rating === 'number' ? body.rating : existingPost.rating
+
     if (!trimmedTitle) {
       return errorResponse('제목을 입력해 주세요.', 400, 'EMPTY_TITLE')
     }
@@ -211,11 +248,23 @@ export default async function handler(request: Request): Promise<Response> {
       return errorResponse('내용을 입력해 주세요.', 400, 'EMPTY_CONTENT')
     }
 
+    if (category !== 'general' && !trimmedFestivalName) {
+      return errorResponse('축제 이름을 입력해 주세요.', 400, 'EMPTY_FESTIVAL_NAME')
+    }
+
+    if (category === 'review' && (rating === undefined || rating < 1 || rating > 5)) {
+      return errorResponse('1에서 5 사이의 평점을 입력해 주세요.', 400, 'INVALID_RATING')
+    }
+
     const now = new Date().toISOString()
     const updatedPost: StoredCommunityPost = {
       ...existingPost,
       title: trimmedTitle,
       content: trimmedContent,
+      category,
+      festivalName: trimmedFestivalName || undefined,
+      partyDate: category === 'party' ? partyDate : undefined,
+      rating: category === 'review' ? rating : undefined,
       updatedAt: now,
     }
 

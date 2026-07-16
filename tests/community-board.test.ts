@@ -24,17 +24,19 @@ describe('Community API', () => {
     expect(Array.isArray(data.posts)).toBe(true)
   })
 
-  it('creates, updates, and deletes a post with password verification', async () => {
+  it('creates, updates, and deletes a general post with password verification', async () => {
     const createResponse = await request('POST', TEST_PATH, {
       title: '테스트 게시글',
       content: '내용입니다.',
       password: VALID_PASSWORD,
+      category: 'general',
     })
 
     expect(createResponse.status).toBe(201)
     const newPost = (await createResponse.json()) as CommunityPost
     expect(newPost.title).toBe('테스트 게시글')
     expect(newPost.content).toBe('내용입니다.')
+    expect(newPost.category).toBe('general')
     expect(newPost.id).toBeTruthy()
     createdPost = newPost
 
@@ -63,6 +65,9 @@ describe('Community API', () => {
       title: '비밀번호 검사 게시글',
       content: '테스트',
       password: VALID_PASSWORD,
+      category: 'party',
+      festivalName: '서울 축제',
+      partyDate: '2026-08-15',
     })
     const newPost = (await createResponse.json()) as CommunityPost
 
